@@ -1,0 +1,17 @@
+<html>
+<head></head>
+<body></body>
+<script>
+    let ws;
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    // This will tell us if the protocol is HTTPS or HTTP
+    // If it is HTTPS - Web Socket Secure (wss) : port 443
+    // If it is HTTP - Web Socket (ws) :port 80
+    ws = new WebSocket(`${proto}://${window.location.host}`);
+    // Will create a new WebSocket object defined as the
+    // proto object (either HTTP or HTTPS) and the domain name.
+    ws.onmessage = (event) => {console.log(event.data)};
+    // Listener triggers when a message is received from the server.
+    // Logs 'event.data' to the console, which contains the message content.
+</script>
+</html>
