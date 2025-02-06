@@ -12,19 +12,10 @@ server.listen(PORT, function () {
   console.log("Listening on " + PORT);
 });
 
-process.on("SIGINT", () => {
-  wss.clients.forEach(function each(client) {
-    client.close();
-  });
-  // Closes the websocket connection to every client before attempting to
-  // shutdown the database, and then the server.
-  server.close(() => {
-    shutdownDB();
-  });
+// Add error handler for the HTTP server
+server.on("error", (err) => {
+  console.error("HTTP server error:", err);
 });
-// SIGINT is the signal sent to the process when the admin hits Ctrl + C
-// to kill the server. Once this keystroke is detected, the server and the
-// database are shut down.
 
 /** Websocket **/
 const WebSocketServer = require("ws").Server;
@@ -60,6 +51,11 @@ wss.on("connection", function connection(ws) {
   ws.on("error", function error() {
     //
   });
+});
+
+// Add error handler for the WebSocket server
+wss.on("error", (err) => {
+  console.error("WebSocket error:", err);
 });
 
 /**
@@ -115,3 +111,28 @@ function shutdownDB() {
 // We never want to just leave the database connection open because it will stay
 // open and we can potentially run out of connection availability, or be exploited.
 // When the server is shut down, we need to shutdown the connection.
+
+// Add process error handlers for uncaught exceptions and unhandled rejections
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  process.exit(1);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled Rejection:", err);
+  process.exit(1);
+});
+
+// Register SIGINT after wss and shutdownDB are defined.
+process.on("SIGINT", () => {
+  wss.clients.forEach(function each(client) {
+    client.close();
+  });
+  // Closes the websocket connection to every client before attempting to
+  // shutdown the database, and then the server.
+  server.close(() => {
+    shutdownDB();
+  });
+});
+// SIGINT is the signal sent to the process when the admin hits Ctrl + C
+// to kill the server. Once this keystroke is detected, the server and the
+// database are shut down.
