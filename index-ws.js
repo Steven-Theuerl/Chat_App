@@ -17,6 +17,49 @@ server.on("error", (err) => {
   console.error("HTTP server error:", err);
 });
 
+/** Begin Database **/
+
+const sqlite = require("sqlite3");
+// Importing the sqlite3 module for use
+const db = new sqlite.Database(":memory:");
+// Creates a new database and stores it in the server's memory
+// Storing in the server'e memory is not persistent.
+// If the server restarts, the data will be lost
+
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE visitors (
+      count INTEGER,
+      time TEXT
+    )
+  `);
+  // The run method is what allows us to execute SQL commands.
+  // This will create a table called "visitors" that has two fields;
+  // "counts" and "time". Fields have to be given a type in SQLite.
+});
+// Setting the serialize command as a callback here will ensure that there is
+// actually a database established to prevent errors on bad queries or writes.
+
+function getCounts() {
+  db.each("SELECT * FROM visitors", (err, row) => {
+    console.log(row);
+  });
+  // each will specify to the table to run a query on every row.
+}
+// This function simply queries the visitors table for the count of visitors.
+
+function shutdownDB() {
+  getCounts();
+  console.log("Shutting down db connection.");
+  db.close();
+  // close will close the connection to the database.
+}
+// We never want to just leave the database connection open because it will stay
+// open and we can potentially run out of connection availability, or be exploited.
+// When the server is shut down, we need to shutdown the connection.
+
+/** End Database **/
+
 /** Websocket **/
 const WebSocketServer = require("ws").Server;
 //Creating a server called WebSocketServer from ws library
@@ -71,46 +114,6 @@ wss.broadcast = function broadcast(data) {
 };
 
 /** End WebSocket **/
-/** Begin Database **/
-
-const sqlite = require("sqlite3");
-// Importing the sqlite3 module for use
-const db = new sqlite.Database(":memory:");
-// Creates a new database and stores it in the server's memory
-// Storing in the server'e memory is not persistent.
-// If the server restarts, the data will be lost
-
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE visitors (
-      count INTEGER,
-      time TEXT
-    )
-  `);
-  // The run method is what allows us to execute SQL commands.
-  // This will create a table called "visitors" that has two fields;
-  // "counts" and "time". Fields have to be given a type in SQLite.
-});
-// Setting the serialize command as a callback here will ensure that there is
-// actually a database established to prevent errors on bad queries or writes.
-
-function getCounts() {
-  db.each("SELECT * FROM visitors", (err, row) => {
-    console.log(row);
-  });
-  // each will specify to the table to run a query on every row.
-}
-// This function simply queries the visitors table for the count of visitors.
-
-function shutdownDB() {
-  getCounts();
-  console.log("Shutting down db connection.");
-  db.close();
-  // close will close the connection to the database.
-}
-// We never want to just leave the database connection open because it will stay
-// open and we can potentially run out of connection availability, or be exploited.
-// When the server is shut down, we need to shutdown the connection.
 
 // Add process error handlers for uncaught exceptions and unhandled rejections
 process.on("uncaughtException", (err) => {
