@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>Real-time Chat</title>
     <style>
-        /* Style for the chat container */
+        /* Chat container styling */
         #chat {
             border: 1px solid #ccc;
             height: 300px;
@@ -14,7 +14,7 @@
             margin-bottom: 10px;
         }
 
-        /* Style for the input fields and buttons */
+        /* Input and button styling */
         #message,
         #name {
             width: 80%;
@@ -25,53 +25,101 @@
             padding: 8px;
         }
 
-        /* Hide the chat interface until a username is provided */
+        /* Hide chat interface until login is complete */
         #chat-interface {
             display: none;
+        }
+
+        /* Message alignment styles */
+        .my-message {
+            text-align: right;
+            background-color: #e0ffe0;
+            /* light green for your messages */
+            margin: 5px;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        .other-message {
+            text-align: left;
+            background-color: #f0f0f0;
+            /* light gray for others */
+            margin: 5px;
+            padding: 5px;
+            border-radius: 5px;
         }
     </style>
 </head>
 
 <body>
-    <!-- Login section: Prompts the user for a name -->
+    <!-- Login section -->
     <div id="login">
         <p>Please enter your name:</p>
         <input type="text" id="name" placeholder="Your name..." autofocus>
         <button onclick="submitName()">Submit</button>
     </div>
-
-    <!-- Chat interface: Hidden by default -->
+    <!-- Chat interface -->
     <div id="chat-interface">
-        <!-- Chat history box -->
         <div id="chat"></div>
-        <!-- Message input -->
         <input type="text" id="message" placeholder="Type your message...">
         <button onclick="sendMessage()">Send</button>
     </div>
 
     <script>
         let ws;
-        // Determine the correct WebSocket protocol based on the page protocol.
+        let myUsername = null; // will store the logged-in user's name
+        // Determine the WebSocket protocol (wss for https, ws for http)
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        // Create a new WebSocket using the appropriate protocol and host.
         ws = new WebSocket(`${proto}://${window.location.host}`);
 
-        // When the connection opens, log a confirmation message.
         ws.onopen = function () {
             console.log("Connected to the chat server.");
         };
 
-        // Listen for incoming messages and display them in the chat container.
         ws.onmessage = function (event) {
             const chat = document.getElementById("chat");
             const messageEl = document.createElement("p");
-            messageEl.textContent = event.data;
+            const msg = event.data;
+
+            // Check if the message is from the current user.
+            if (myUsername && msg.startsWith(myUsername + " [")) {
+                // Expected format: "username [timestamp]: message"
+                const colonIndex = msg.indexOf(":");
+                let text = msg;
+                if (colonIndex !== -1) {
+                    text = msg.substring(colonIndex + 2); // Skip ": " to get the actual message.
+                }
+                messageEl.textContent = text;
+                messageEl.classList.add("my-message"); // Right-align current user's messages.
+            } else {
+                messageEl.textContent = msg;
+                messageEl.classList.add("other-message"); // Left-align others' messages.
+            }
+
             chat.appendChild(messageEl);
-            // Auto-scroll to the latest message.
             chat.scrollTop = chat.scrollHeight;
         };
 
-        // Function to send a message to the server.
+        function submitName() {
+            const nameInput = document.getElementById("name");
+            if (nameInput.value.trim()) {
+                myUsername = nameInput.value.trim();
+                // Send the username to the server (to trigger authentication logic)
+                ws.send(myUsername);
+                // Hide the login section and display the chat interface.
+                document.getElementById("login").style.display = "none";
+                document.getElementById("chat-interface").style.display = "block";
+                document.getElementById("message").focus();
+            }
+        }
+
+        // Allow pressing Enter to submit the username.
+        document.getElementById("name").addEventListener("keypress", function (e) {
+            if (e.key === "Enter") {
+                submitName();
+            }
+        });
+
         function sendMessage() {
             const input = document.getElementById("message");
             if (input.value.trim()) {
@@ -80,28 +128,7 @@
             }
         }
 
-        // Function to submit the username.
-        function submitName() {
-            const nameInput = document.getElementById("name");
-            if (nameInput.value.trim()) {
-                // Send the username to the server (this will trigger your auth logic).
-                ws.send(nameInput.value.trim());
-                // Hide the login section and show the chat interface.
-                document.getElementById("login").style.display = "none";
-                document.getElementById("chat-interface").style.display = "block";
-                // Set focus on the message input.
-                document.getElementById("message").focus();
-            }
-        }
-
-        // Allow submitting the name by pressing Enter.
-        document.getElementById("name").addEventListener("keypress", function (e) {
-            if (e.key === "Enter") {
-                submitName();
-            }
-        });
-
-        // Allow sending messages via the Enter key in the chat interface.
+        // Allow sending messages with the Enter key.
         document.getElementById("message").addEventListener("keypress", function (e) {
             if (e.key === "Enter") {
                 sendMessage();
