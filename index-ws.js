@@ -24,9 +24,18 @@ const sqlite = require("sqlite3");
 const db = new sqlite.Database(":memory:");
 
 db.serialize(() => {
+  // Table for visitor counts
   db.run(`
     CREATE TABLE visitors (
       count INTEGER,
+      time TEXT
+    )
+  `);
+  // New table for chat messages
+  db.run(`
+    CREATE TABLE chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message TEXT,
       time TEXT
     )
   `);
@@ -69,10 +78,48 @@ wss.on("connection", function connection(ws) {
      VALUES (${numClients}, dateTime('now'))`
   );
 
-  // Listen for incoming chat messages and broadcast them
+  // Load chat history for the new client, including timestamps
+  db.all(
+    "SELECT message, time FROM chat_messages ORDER BY time ASC",
+    (err, rows) => {
+      if (err) {
+        console.error("Error loading chat history:", err);
+        return;
+      }
+      rows.forEach((row) => {
+        // Each historical message is sent with its timestamp.
+        ws.send(`[${row.time}] ${row.message}`);
+      });
+    }
+  );
+
+  // Listen for incoming chat messages and broadcast them with a timestamp.
   ws.on("message", function incoming(message) {
     console.log("Received chat message:", message);
-    wss.broadcast(message);
+
+    // Insert the incoming chat message into the chat_messages table.
+    db.run(
+      `INSERT INTO chat_messages (message, time) VALUES (?, dateTime('now'))`,
+      [message],
+      function (err) {
+        if (err) {
+          console.error("Error inserting chat message:", err);
+        } else {
+          // Retrieve the timestamp from the newly inserted row.
+          db.get(
+            "SELECT time FROM chat_messages WHERE rowid = last_insert_rowid()",
+            function (err, row) {
+              if (err) {
+                console.error("Error retrieving timestamp:", err);
+              } else {
+                // Broadcast the message with its timestamp.
+                wss.broadcast(`[${row.time}] ${message}`);
+              }
+            }
+          );
+        }
+      }
+    );
   });
 
   // Handle client disconnects
