@@ -14,8 +14,9 @@
             margin-bottom: 10px;
         }
 
-        /* Optional: Style for the input and button */
-        #message {
+        /* Style for the input fields and buttons */
+        #message,
+        #name {
             width: 80%;
             padding: 8px;
         }
@@ -23,16 +24,30 @@
         button {
             padding: 8px;
         }
+
+        /* Hide the chat interface until a username is provided */
+        #chat-interface {
+            display: none;
+        }
     </style>
 </head>
 
 <body>
-    <!-- Chat messages will be appended here -->
-    <div id="chat"></div>
-    <!-- Input field for typing messages -->
-    <input type="text" id="message" placeholder="Type your message..." autofocus>
-    <!-- Button to send messages -->
-    <button onclick="sendMessage()">Send</button>
+    <!-- Login section: Prompts the user for a name -->
+    <div id="login">
+        <p>Please enter your name:</p>
+        <input type="text" id="name" placeholder="Your name..." autofocus>
+        <button onclick="submitName()">Submit</button>
+    </div>
+
+    <!-- Chat interface: Hidden by default -->
+    <div id="chat-interface">
+        <!-- Chat history box -->
+        <div id="chat"></div>
+        <!-- Message input -->
+        <input type="text" id="message" placeholder="Type your message...">
+        <button onclick="sendMessage()">Send</button>
+    </div>
 
     <script>
         let ws;
@@ -65,7 +80,28 @@
             }
         }
 
-        // Optionally, allow sending messages via the Enter key.
+        // Function to submit the username.
+        function submitName() {
+            const nameInput = document.getElementById("name");
+            if (nameInput.value.trim()) {
+                // Send the username to the server (this will trigger your auth logic).
+                ws.send(nameInput.value.trim());
+                // Hide the login section and show the chat interface.
+                document.getElementById("login").style.display = "none";
+                document.getElementById("chat-interface").style.display = "block";
+                // Set focus on the message input.
+                document.getElementById("message").focus();
+            }
+        }
+
+        // Allow submitting the name by pressing Enter.
+        document.getElementById("name").addEventListener("keypress", function (e) {
+            if (e.key === "Enter") {
+                submitName();
+            }
+        });
+
+        // Allow sending messages via the Enter key in the chat interface.
         document.getElementById("message").addEventListener("keypress", function (e) {
             if (e.key === "Enter") {
                 sendMessage();

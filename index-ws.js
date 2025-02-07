@@ -24,17 +24,19 @@ const sqlite = require("sqlite3");
 const db = new sqlite.Database(":memory:");
 
 db.serialize(() => {
-  // Table for visitor counts
+  // Create visitors table with a username column.
   db.run(`
     CREATE TABLE visitors (
       count INTEGER,
+      username TEXT,
       time TEXT
     )
   `);
-  // New table for chat messages
+  // Create chat_messages table with a username column.
   db.run(`
     CREATE TABLE chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT,
       message TEXT,
       time TEXT
     )
@@ -55,65 +57,77 @@ function shutdownDB() {
 
 /** End Database **/
 
-/** Websocket **/
+/** WebSocket **/
 const WebSocketServer = require("ws").Server;
 const wss = new WebSocketServer({ server: server });
 
 wss.on("connection", function connection(ws) {
-  // Get the number of connected clients
+  // Prompt the user for their username.
+  ws.send("Please enter your name:");
+  ws.authenticated = false;
+
+  // Broadcast current visitor count.
   const numClients = wss.clients.size;
   console.log("Clients connected: " + numClients);
-
-  // Broadcast visitor count update
   wss.broadcast(`Current visitors: ${numClients}`);
 
-  // Send a welcome message to the newly connected client
-  if (ws.readyState === ws.OPEN) {
-    ws.send("Welcome!");
-  }
-
-  // Insert the visitor count into the database
-  db.run(
-    `INSERT INTO visitors (count, time)
-     VALUES (${numClients}, dateTime('now'))`
-  );
-
-  // Load chat history for the new client, including timestamps
-  db.all(
-    "SELECT message, time FROM chat_messages ORDER BY time ASC",
-    (err, rows) => {
-      if (err) {
-        console.error("Error loading chat history:", err);
-        return;
-      }
-      rows.forEach((row) => {
-        // Each historical message is sent with its timestamp.
-        ws.send(`[${row.time}] ${row.message}`);
-      });
-    }
-  );
-
-  // Listen for incoming chat messages and broadcast them with a timestamp.
+  // Listen for incoming messages.
   ws.on("message", function incoming(message) {
-    console.log("Received chat message:", message);
+    // Convert message to a string if it's not already.
+    if (typeof message !== "string") {
+      message = message.toString();
+    }
 
-    // Insert the incoming chat message into the chat_messages table.
+    if (!ws.authenticated) {
+      // The first message is treated as the username.
+      ws.username = message.trim();
+      ws.authenticated = true;
+      ws.send(`Welcome, ${ws.username}!`);
+
+      // Insert the visitor record including the username.
+      db.run(
+        `INSERT INTO visitors (count, username, time) VALUES (?, ?, dateTime('now'))`,
+        [wss.clients.size, ws.username],
+        function (err) {
+          if (err) console.error("Error inserting visitor:", err);
+        }
+      );
+
+      // Load and send chat history.
+      db.all(
+        "SELECT username, message, time FROM chat_messages ORDER BY time ASC",
+        (err, rows) => {
+          if (err) {
+            console.error("Error loading chat history:", err);
+            return;
+          }
+          rows.forEach((row) => {
+            // Format: <username> [<timestamp>]: <message>
+            ws.send(`${row.username} [${row.time}]: ${row.message}`);
+          });
+        }
+      );
+      return;
+    }
+
+    // Process chat message from an authenticated user.
+    console.log(`Received chat message from ${ws.username}:`, message);
     db.run(
-      `INSERT INTO chat_messages (message, time) VALUES (?, dateTime('now'))`,
-      [message],
+      `INSERT INTO chat_messages (username, message, time) VALUES (?, ?, dateTime('now'))`,
+      [ws.username, message],
       function (err) {
         if (err) {
           console.error("Error inserting chat message:", err);
         } else {
-          // Retrieve the timestamp from the newly inserted row.
+          // Retrieve the timestamp of the newly inserted message.
           db.get(
             "SELECT time FROM chat_messages WHERE rowid = last_insert_rowid()",
             function (err, row) {
               if (err) {
                 console.error("Error retrieving timestamp:", err);
               } else {
-                // Broadcast the message with its timestamp.
-                wss.broadcast(`[${row.time}] ${message}`);
+                // Broadcast the message in the format: <username> [<timestamp>]: <message>
+                wss.broadcast(`${ws.username} [${row.time}]: ${message}`);
               }
             }
           );
@@ -122,31 +136,46 @@ wss.on("connection", function connection(ws) {
     );
   });
 
-  // Handle client disconnects
+  // Handle client disconnect.
   ws.on("close", function close() {
+    if (ws.username) {
+      // Delete this user's record from visitors.
+      db.run(
+        "DELETE FROM visitors WHERE username = ?",
+        [ws.username],
+        function (err) {
+          if (err) console.error("Error deleting visitor:", err);
+        }
+      );
+      // Delete this user's chat messages.
+      db.run(
+        "DELETE FROM chat_messages WHERE username = ?",
+        [ws.username],
+        function (err) {
+          if (err) console.error("Error deleting chat messages for user:", err);
+        }
+      );
+    }
     const remainingClients = wss.clients.size;
     wss.broadcast(`Current visitors: ${remainingClients}`);
     console.log("A client has disconnected.");
   });
 
-  // Correctly handle WebSocket errors (added error parameter)
   ws.on("error", function error(err) {
     console.error("WebSocket error:", err);
   });
 });
 
-// Add error handler for the WebSocket server
 wss.on("error", (err) => {
   console.error("WebSocket error:", err);
 });
 
 /**
  * Broadcast data to all connected clients.
- * This function iterates over every client and sends the data if the client is open.
+ * Iterates over every client and sends the data if the client is open.
  * @param {Object} data
  */
 wss.broadcast = function broadcast(data) {
-  // Ensure data is a string.
   const message = typeof data === "string" ? data : data.toString();
   console.log("Broadcasting:", message);
   wss.clients.forEach(function each(client) {
@@ -158,7 +187,6 @@ wss.broadcast = function broadcast(data) {
 
 /** End WebSocket **/
 
-// Process error handlers for uncaught exceptions and unhandled rejections
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
   process.exit(1);
@@ -168,7 +196,6 @@ process.on("unhandledRejection", (err) => {
   process.exit(1);
 });
 
-// Handle SIGINT to gracefully shut down the server and the database
 process.on("SIGINT", () => {
   wss.clients.forEach(function each(client) {
     client.close();
