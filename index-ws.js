@@ -19,11 +19,11 @@ server.on("error", (err) => {
 /** Begin Database **/
 
 const sqlite = require("sqlite3");
-// Create an in‑memory database (non‑persistent)
+// Creates an in‑memory database (non‑persistent)
 const db = new sqlite.Database(":memory:");
 
 db.serialize(() => {
-  // Update the visitors table to store username and IP.
+  // Create visitors table with username, ip, and time.
   db.run(`
     CREATE TABLE visitors (
       count INTEGER,
@@ -32,7 +32,7 @@ db.serialize(() => {
       time TEXT
     )
   `);
-  // Update chat_messages table to include an IP column.
+  // Create chat_messages table with username, ip, message, and time.
   db.run(`
     CREATE TABLE chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,10 +63,10 @@ const WebSocketServer = require("ws").Server;
 const wss = new WebSocketServer({ server: server });
 
 wss.on("connection", function connection(ws) {
-  // Capture the client's IP address from the underlying socket.
+  // Capture the client's IP address.
   ws.ip = ws._socket.remoteAddress;
 
-  // Prompt the user for their username.
+  // Prompt for username.
   ws.send("Please enter your name:");
   ws.authenticated = false;
 
@@ -80,13 +80,30 @@ wss.on("connection", function connection(ws) {
     }
 
     if (!ws.authenticated) {
-      // First message is treated as the username.
-      ws.username = message.trim();
+      let proposedUsername = message.trim();
+      // Check for duplicate username among active clients.
+      let duplicate = false;
+      wss.clients.forEach(function (client) {
+        if (
+          client !== ws &&
+          client.authenticated &&
+          client.username === proposedUsername
+        ) {
+          duplicate = true;
+        }
+      });
+      if (duplicate) {
+        ws.send("Username already in use, please enter a different name:");
+        return;
+      }
+      // Accept the username.
+      ws.username = proposedUsername;
       ws.authenticated = true;
-      // Send a welcome message that includes the IP (so the client can store it).
-      ws.send(`Welcome, ${ws.username}! [IP: ${ws.ip}]`);
+      // Record join time in "YYYY-MM-DD HH:MM:SS" format.
+      ws.joinTime = new Date().toISOString().slice(0, 19).replace("T", " ");
+      ws.send(`Welcome, ${ws.username}!`);
 
-      // Insert the visitor record with username and IP.
+      // Insert visitor record.
       db.run(
         `INSERT INTO visitors (count, username, ip, time) VALUES (?, ?, ?, dateTime('now'))`,
         [wss.clients.size, ws.username, ws.ip],
@@ -95,25 +112,26 @@ wss.on("connection", function connection(ws) {
         }
       );
 
-      // Load and send chat history.
+      // Load and send chat history only from messages after join time.
       db.all(
-        "SELECT username, ip, message, time FROM chat_messages ORDER BY time ASC",
+        "SELECT username, message, time FROM chat_messages WHERE time >= ? ORDER BY time ASC",
+        [ws.joinTime],
         (err, rows) => {
           if (err) {
             console.error("Error loading chat history:", err);
             return;
           }
           rows.forEach((row) => {
-            // Format each message as: username@ip [timestamp]: message
-            ws.send(`${row.username}@${row.ip} [${row.time}]: ${row.message}`);
+            // Format: username [timestamp]: message
+            ws.send(`${row.username} [${row.time}]: ${row.message}`);
           });
         }
       );
       return;
     }
 
-    // For authenticated users, store the chat message with username and IP.
-    console.log(`Received chat message from ${ws.username}@${ws.ip}:`, message);
+    // Process chat message from an authenticated user.
+    console.log(`Received chat message from ${ws.username}:`, message);
     db.run(
       `INSERT INTO chat_messages (username, ip, message, time) VALUES (?, ?, ?, dateTime('now'))`,
       [ws.username, ws.ip, message],
@@ -121,17 +139,14 @@ wss.on("connection", function connection(ws) {
         if (err) {
           console.error("Error inserting chat message:", err);
         } else {
-          // Retrieve the timestamp of the new message.
           db.get(
             "SELECT time FROM chat_messages WHERE rowid = last_insert_rowid()",
             function (err, row) {
               if (err) {
                 console.error("Error retrieving timestamp:", err);
               } else {
-                // Broadcast the message including username and IP.
-                wss.broadcast(
-                  `${ws.username}@${ws.ip} [${row.time}]: ${message}`
-                );
+                // Broadcast message without IP.
+                wss.broadcast(`${ws.username} [${row.time}]: ${message}`);
               }
             }
           );
@@ -140,9 +155,11 @@ wss.on("connection", function connection(ws) {
     );
   });
 
-  // On disconnect, only remove the visitor record for this session.
   ws.on("close", function close() {
     if (ws.username) {
+      // Broadcast a global disconnect message.
+      wss.broadcast(`${ws.username} has disconnected.`);
+      // Delete the visitor record for this user.
       db.run(
         "DELETE FROM visitors WHERE username = ? AND ip = ?",
         [ws.username, ws.ip],
@@ -171,7 +188,7 @@ wss.on("error", (err) => {
 wss.broadcast = function broadcast(data) {
   const message = typeof data === "string" ? data : data.toString();
   console.log("Broadcasting:", message);
-  wss.clients.forEach(function each(client) {
+  wss.clients.forEach(function (client) {
     if (client.readyState === client.OPEN) {
       client.send(message);
     }
@@ -190,7 +207,7 @@ process.on("unhandledRejection", (err) => {
 });
 
 process.on("SIGINT", () => {
-  wss.clients.forEach(function each(client) {
+  wss.clients.forEach(function (client) {
     client.close();
   });
   server.close(() => {

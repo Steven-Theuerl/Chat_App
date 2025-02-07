@@ -14,7 +14,7 @@
             margin-bottom: 10px;
         }
 
-        /* Input and button styling */
+        /* Input styling */
         #message,
         #name {
             width: 80%;
@@ -25,16 +25,15 @@
             padding: 8px;
         }
 
-        /* Hide chat interface until login is complete */
+        /* Initially hide chat interface */
         #chat-interface {
             display: none;
         }
 
-        /* Message alignment styles */
+        /* Message alignment */
         .my-message {
             text-align: right;
             background-color: #e0ffe0;
-            /* light green for your messages */
             margin: 5px;
             padding: 5px;
             border-radius: 5px;
@@ -43,7 +42,6 @@
         .other-message {
             text-align: left;
             background-color: #f0f0f0;
-            /* light gray for others */
             margin: 5px;
             padding: 5px;
             border-radius: 5px;
@@ -67,8 +65,8 @@
 
     <script>
         let ws;
-        let myUsername = null; // will store the logged-in user's name
-        // Determine the WebSocket protocol (wss for https, ws for http)
+        let myUsername = null;
+        // Determine the WebSocket protocol.
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
         ws = new WebSocket(`${proto}://${window.location.host}`);
 
@@ -81,19 +79,20 @@
             const messageEl = document.createElement("p");
             const msg = event.data;
 
-            // Check if the message is from the current user.
+            // Check if the message is from me.
             if (myUsername && msg.startsWith(myUsername + " [")) {
-                // Expected format: "username [timestamp]: message"
+                // Message format: "username [timestamp]: message"
                 const colonIndex = msg.indexOf(":");
                 let text = msg;
                 if (colonIndex !== -1) {
-                    text = msg.substring(colonIndex + 2); // Skip ": " to get the actual message.
+                    // Display only the message text.
+                    text = msg.substring(colonIndex + 2);
                 }
                 messageEl.textContent = text;
-                messageEl.classList.add("my-message"); // Right-align current user's messages.
+                messageEl.classList.add("my-message");
             } else {
                 messageEl.textContent = msg;
-                messageEl.classList.add("other-message"); // Left-align others' messages.
+                messageEl.classList.add("other-message");
             }
 
             chat.appendChild(messageEl);
@@ -104,16 +103,15 @@
             const nameInput = document.getElementById("name");
             if (nameInput.value.trim()) {
                 myUsername = nameInput.value.trim();
-                // Send the username to the server (to trigger authentication logic)
+                // Send the username to the server.
                 ws.send(myUsername);
-                // Hide the login section and display the chat interface.
+                // Hide the login section and show the chat interface.
                 document.getElementById("login").style.display = "none";
                 document.getElementById("chat-interface").style.display = "block";
                 document.getElementById("message").focus();
             }
         }
 
-        // Allow pressing Enter to submit the username.
         document.getElementById("name").addEventListener("keypress", function (e) {
             if (e.key === "Enter") {
                 submitName();
@@ -128,7 +126,6 @@
             }
         }
 
-        // Allow sending messages with the Enter key.
         document.getElementById("message").addEventListener("keypress", function (e) {
             if (e.key === "Enter") {
                 sendMessage();
