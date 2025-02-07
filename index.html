@@ -46,6 +46,11 @@
             padding: 5px;
             border-radius: 5px;
         }
+
+        /* Error message styling for login */
+        #login-error {
+            color: red;
+        }
     </style>
 </head>
 
@@ -55,6 +60,7 @@
         <p>Please enter your name:</p>
         <input type="text" id="name" placeholder="Your name..." autofocus>
         <button onclick="submitName()">Submit</button>
+        <p id="login-error"></p>
     </div>
     <!-- Chat interface -->
     <div id="chat-interface">
@@ -79,20 +85,42 @@
             const messageEl = document.createElement("p");
             const msg = event.data;
 
-            // Check if the message is from me.
-            if (myUsername && msg.startsWith(myUsername + " [")) {
-                // Message format: "username [timestamp]: message"
-                const colonIndex = msg.indexOf(":");
-                let text = msg;
-                if (colonIndex !== -1) {
-                    // Display only the message text.
-                    text = msg.substring(colonIndex + 2);
-                }
-                messageEl.textContent = text;
-                messageEl.classList.add("my-message");
-            } else {
+            // If we receive a welcome message, this confirms our username is accepted.
+            if (msg.startsWith("Welcome, ")) {
+                // Example welcome message: "Welcome, John!"
+                const nameFromServer = msg.split("Welcome, ")[1].split("!")[0];
+                myUsername = nameFromServer;
+                // Hide the login UI and show the chat interface.
+                document.getElementById("login").style.display = "none";
+                document.getElementById("chat-interface").style.display = "block";
+                document.getElementById("message").focus();
+                // Display the welcome message.
                 messageEl.textContent = msg;
                 messageEl.classList.add("other-message");
+            }
+            else if (msg.startsWith("Username already in use")) {
+                // Show an error message and remain in the login UI.
+                document.getElementById("login-error").textContent = msg;
+                return;
+            }
+            else {
+                // Otherwise, assume the message is in the format: "username [timestamp]: message"
+                const pattern = /^(.+?) \[(.+?)\]: (.*)$/;
+                const parts = msg.match(pattern);
+                if (parts) {
+                    // If the message is from us, display it as "You [timestamp]: message"
+                    if (myUsername && parts[1] === myUsername) {
+                        messageEl.textContent = `You [${parts[2]}]: ${parts[3]}`;
+                        messageEl.classList.add("my-message");
+                    } else {
+                        messageEl.textContent = msg;
+                        messageEl.classList.add("other-message");
+                    }
+                } else {
+                    // Fallback for messages not matching expected format.
+                    messageEl.textContent = msg;
+                    messageEl.classList.add("other-message");
+                }
             }
 
             chat.appendChild(messageEl);
@@ -101,17 +129,15 @@
 
         function submitName() {
             const nameInput = document.getElementById("name");
+            const errorEl = document.getElementById("login-error");
+            errorEl.textContent = "";
             if (nameInput.value.trim()) {
-                myUsername = nameInput.value.trim();
-                // Send the username to the server.
-                ws.send(myUsername);
-                // Hide the login section and show the chat interface.
-                document.getElementById("login").style.display = "none";
-                document.getElementById("chat-interface").style.display = "block";
-                document.getElementById("message").focus();
+                // Send the chosen username to the server.
+                ws.send(nameInput.value.trim());
             }
         }
 
+        // Allow Enter key to submit the username.
         document.getElementById("name").addEventListener("keypress", function (e) {
             if (e.key === "Enter") {
                 submitName();
@@ -126,6 +152,7 @@
             }
         }
 
+        // Allow Enter key to send a chat message.
         document.getElementById("message").addEventListener("keypress", function (e) {
             if (e.key === "Enter") {
                 sendMessage();

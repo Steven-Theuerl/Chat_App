@@ -103,7 +103,10 @@ wss.on("connection", function connection(ws) {
       ws.joinTime = new Date().toISOString().slice(0, 19).replace("T", " ");
       ws.send(`Welcome, ${ws.username}!`);
 
-      // Insert visitor record.
+      // Broadcast join notification to all clients.
+      wss.broadcast(`${ws.username} has joined the chat.`);
+
+      // Insert the visitor record.
       db.run(
         `INSERT INTO visitors (count, username, ip, time) VALUES (?, ?, ?, dateTime('now'))`,
         [wss.clients.size, ws.username, ws.ip],
@@ -112,7 +115,16 @@ wss.on("connection", function connection(ws) {
         }
       );
 
-      // Load and send chat history only from messages after join time.
+      // Send a system message to the new user listing all currently connected authenticated users.
+      let connectedUsers = [];
+      wss.clients.forEach(function (client) {
+        if (client.authenticated) {
+          connectedUsers.push(client.username);
+        }
+      });
+      ws.send("System: Currently connected: " + connectedUsers.join(", "));
+
+      // Load and send only chat messages with a timestamp >= ws.joinTime.
       db.all(
         "SELECT username, message, time FROM chat_messages WHERE time >= ? ORDER BY time ASC",
         [ws.joinTime],
@@ -145,7 +157,7 @@ wss.on("connection", function connection(ws) {
               if (err) {
                 console.error("Error retrieving timestamp:", err);
               } else {
-                // Broadcast message without IP.
+                // Broadcast message in the format: username [timestamp]: message
                 wss.broadcast(`${ws.username} [${row.time}]: ${message}`);
               }
             }
