@@ -62,6 +62,15 @@ function shutdownDB() {
 const WebSocketServer = require("ws").Server;
 const wss = new WebSocketServer({ server: server });
 
+// Keep-alive: send a ping every 30 seconds to each client.
+const pingInterval = setInterval(() => {
+  wss.clients.forEach((client) => {
+    if (client.readyState === client.OPEN) {
+      client.ping();
+    }
+  });
+}, 30000);
+
 wss.on("connection", function connection(ws) {
   // Capture the client's IP address.
   ws.ip = ws._socket.remoteAddress;
@@ -219,6 +228,8 @@ process.on("unhandledRejection", (err) => {
 });
 
 process.on("SIGINT", () => {
+  // Clear the ping interval.
+  clearInterval(pingInterval);
   wss.clients.forEach(function (client) {
     client.close();
   });
