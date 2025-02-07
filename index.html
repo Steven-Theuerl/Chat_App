@@ -1,17 +1,77 @@
+<!DOCTYPE html>
 <html>
-<head></head>
-<body></body>
-<script>
-    let ws;
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    // This will tell us if the protocol is HTTPS or HTTP
-    // If it is HTTPS - Web Socket Secure (wss) : port 443
-    // If it is HTTP - Web Socket (ws) :port 80
-    ws = new WebSocket(`${proto}://${window.location.host}`);
-    // Will create a new WebSocket object defined as the
-    // proto object (either HTTP or HTTPS) and the domain name.
-    ws.onmessage = (event) => {console.log(event.data)};
-    // Listener triggers when a message is received from the server.
-    // Logs 'event.data' to the console, which contains the message content.
-</script>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Real-time Chat</title>
+    <style>
+        /* Style for the chat container */
+        #chat {
+            border: 1px solid #ccc;
+            height: 300px;
+            overflow-y: scroll;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        /* Optional: Style for the input and button */
+        #message {
+            width: 80%;
+            padding: 8px;
+        }
+
+        button {
+            padding: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Chat messages will be appended here -->
+    <div id="chat"></div>
+    <!-- Input field for typing messages -->
+    <input type="text" id="message" placeholder="Type your message..." autofocus>
+    <!-- Button to send messages -->
+    <button onclick="sendMessage()">Send</button>
+
+    <script>
+        let ws;
+        // Determine the correct WebSocket protocol based on the page protocol.
+        const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        // Create a new WebSocket using the appropriate protocol and host.
+        ws = new WebSocket(`${proto}://${window.location.host}`);
+
+        // When the connection opens, log a confirmation message.
+        ws.onopen = function () {
+            console.log("Connected to the chat server.");
+        };
+
+        // Listen for incoming messages and display them in the chat container.
+        ws.onmessage = function (event) {
+            const chat = document.getElementById("chat");
+            const messageEl = document.createElement("p");
+            messageEl.textContent = event.data;
+            chat.appendChild(messageEl);
+            // Auto-scroll to the latest message.
+            chat.scrollTop = chat.scrollHeight;
+        };
+
+        // Function to send a message to the server.
+        function sendMessage() {
+            const input = document.getElementById("message");
+            if (input.value.trim()) {
+                ws.send(input.value);
+                input.value = "";
+            }
+        }
+
+        // Optionally, allow sending messages via the Enter key.
+        document.getElementById("message").addEventListener("keypress", function (e) {
+            if (e.key === "Enter") {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+
 </html>
