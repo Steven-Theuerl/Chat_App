@@ -3,6 +3,9 @@ const server = require("http").createServer();
 const app = express();
 const PORT = 3000;
 
+// Middleware to parse JSON bodies for PUT requests.
+app.use(express.json());
+
 app.get("/", function (req, res) {
   res.sendFile("index.html", { root: __dirname });
 });
@@ -57,6 +60,58 @@ function shutdownDB() {
 }
 
 /** End Database **/
+
+// Express endpoint for PUT /change-name
+app.put("/change-name", (req, res) => {
+  const { oldName, newName } = req.body;
+  if (!oldName || !newName) {
+    return res.status(400).json({ error: "Missing oldName or newName." });
+  }
+  // Check for duplicate among active clients.
+  let duplicate = false;
+  wss.clients.forEach((client) => {
+    if (client.authenticated && client.username === newName) {
+      duplicate = true;
+    }
+  });
+  if (duplicate) {
+    return res.status(400).json({
+      error: "Username already in use, please choose a different name.",
+    });
+  }
+  // Find the client connection with oldName.
+  let foundClient = null;
+  wss.clients.forEach((client) => {
+    if (client.authenticated && client.username === oldName) {
+      foundClient = client;
+    }
+  });
+  if (!foundClient) {
+    return res
+      .status(404)
+      .json({ error: "Active client with the old username not found." });
+  }
+  // Update in-memory state.
+  foundClient.username = newName;
+  // Update the database record.
+  db.run(
+    "UPDATE visitors SET username = ? WHERE username = ? AND ip = ?",
+    [newName, oldName, foundClient.ip],
+    function (err) {
+      if (err) {
+        console.error("Error updating username in DB:", err);
+        return res
+          .status(500)
+          .json({ error: "Error updating username in database." });
+      }
+      // Broadcast a system message about the name change.
+      wss.broadcast(`System: ${oldName} has changed their name to ${newName}.`);
+      return res
+        .status(200)
+        .json({ message: "Username updated successfully." });
+    }
+  );
+});
 
 /** WebSocket **/
 const WebSocketServer = require("ws").Server;
@@ -143,7 +198,6 @@ wss.on("connection", function connection(ws) {
             return;
           }
           rows.forEach((row) => {
-            // Format: username [timestamp]: message
             ws.send(`${row.username} [${row.time}]: ${row.message}`);
           });
         }
@@ -166,7 +220,6 @@ wss.on("connection", function connection(ws) {
               if (err) {
                 console.error("Error retrieving timestamp:", err);
               } else {
-                // Broadcast message in the format: username [timestamp]: message
                 wss.broadcast(`${ws.username} [${row.time}]: ${message}`);
               }
             }
@@ -178,9 +231,7 @@ wss.on("connection", function connection(ws) {
 
   ws.on("close", function close() {
     if (ws.username) {
-      // Broadcast a global disconnect message.
       wss.broadcast(`${ws.username} has disconnected.`);
-      // Delete the visitor record for this user.
       db.run(
         "DELETE FROM visitors WHERE username = ? AND ip = ?",
         [ws.username, ws.ip],
@@ -228,7 +279,6 @@ process.on("unhandledRejection", (err) => {
 });
 
 process.on("SIGINT", () => {
-  // Clear the ping interval.
   clearInterval(pingInterval);
   wss.clients.forEach(function (client) {
     client.close();

@@ -23,6 +23,7 @@
 
         button {
             padding: 8px;
+            margin-left: 5px;
         }
 
         /* Initially hide chat interface */
@@ -67,12 +68,13 @@
         <div id="chat"></div>
         <input type="text" id="message" placeholder="Type your message...">
         <button onclick="sendMessage()">Send</button>
+        <!-- Change Name button now simply resets the session -->
+        <button onclick="changeName()">Disconnect</button>
     </div>
 
     <script>
         let ws;
         let myUsername = null;
-        // Determine the WebSocket protocol.
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
         ws = new WebSocket(`${proto}://${window.location.host}`);
 
@@ -85,30 +87,23 @@
             const messageEl = document.createElement("p");
             const msg = event.data;
 
-            // If we receive a welcome message, this confirms our username is accepted.
+            // Handle welcome message.
             if (msg.startsWith("Welcome, ")) {
-                // Example welcome message: "Welcome, John!"
                 const nameFromServer = msg.split("Welcome, ")[1].split("!")[0];
                 myUsername = nameFromServer;
-                // Hide the login UI and show the chat interface.
                 document.getElementById("login").style.display = "none";
                 document.getElementById("chat-interface").style.display = "block";
                 document.getElementById("message").focus();
-                // Display the welcome message.
                 messageEl.textContent = msg;
                 messageEl.classList.add("other-message");
-            }
-            else if (msg.startsWith("Username already in use")) {
-                // Show an error message and remain in the login UI.
+            } else if (msg.startsWith("Username already in use")) {
                 document.getElementById("login-error").textContent = msg;
                 return;
-            }
-            else {
-                // Otherwise, assume the message is in the format: "username [timestamp]: message"
+            } else {
+                // Expected message format: "username [timestamp]: message"
                 const pattern = /^(.+?) \[(.+?)\]: (.*)$/;
                 const parts = msg.match(pattern);
                 if (parts) {
-                    // If the message is from us, display it as "You [timestamp]: message"
                     if (myUsername && parts[1] === myUsername) {
                         messageEl.textContent = `You [${parts[2]}]: ${parts[3]}`;
                         messageEl.classList.add("my-message");
@@ -117,12 +112,10 @@
                         messageEl.classList.add("other-message");
                     }
                 } else {
-                    // Fallback for messages not matching expected format.
                     messageEl.textContent = msg;
                     messageEl.classList.add("other-message");
                 }
             }
-
             chat.appendChild(messageEl);
             chat.scrollTop = chat.scrollHeight;
         };
@@ -132,12 +125,10 @@
             const errorEl = document.getElementById("login-error");
             errorEl.textContent = "";
             if (nameInput.value.trim()) {
-                // Send the chosen username to the server.
                 ws.send(nameInput.value.trim());
             }
         }
 
-        // Allow Enter key to submit the username.
         document.getElementById("name").addEventListener("keypress", function (e) {
             if (e.key === "Enter") {
                 submitName();
@@ -152,12 +143,18 @@
             }
         }
 
-        // Allow Enter key to send a chat message.
         document.getElementById("message").addEventListener("keypress", function (e) {
             if (e.key === "Enter") {
                 sendMessage();
             }
         });
+
+        // New changeName function: resets session by reloading the page.
+        function changeName() {
+            // Optionally, you could send a logout or disconnect message here.
+            // For simplicity, we just reload the page to reset the session.
+            location.reload();
+        }
     </script>
 </body>
 
