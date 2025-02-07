@@ -99,10 +99,12 @@ wss.on("error", (err) => {
  * @param {Object} data
  */
 wss.broadcast = function broadcast(data) {
-  console.log("Broadcasting:", data);
+  // Ensure data is a string.
+  const message = typeof data === "string" ? data : data.toString();
+  console.log("Broadcasting:", message);
   wss.clients.forEach(function each(client) {
     if (client.readyState === client.OPEN) {
-      client.send(data);
+      client.send(message);
     }
   });
 };
