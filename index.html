@@ -31,6 +31,15 @@
             display: none;
         }
 
+        /* System message styling (for logout, etc.) */
+        #system-message {
+            padding: 20px;
+            border: 2px solid red;
+            text-align: center;
+            font-size: 1.2em;
+            margin-top: 20px;
+        }
+
         /* Message alignment */
         .my-message {
             text-align: right;
@@ -56,8 +65,9 @@
 </head>
 
 <body>
-    <!-- Login section -->
+    <!-- Login section with a welcome message -->
     <div id="login">
+        <p id="welcome-message">Welcome to the site :)</p>
         <p>Please enter your name:</p>
         <input type="text" id="name" placeholder="Your name..." autofocus>
         <button onclick="submitName()">Submit</button>
@@ -68,8 +78,7 @@
         <div id="chat"></div>
         <input type="text" id="message" placeholder="Type your message...">
         <button onclick="sendMessage()">Send</button>
-        <!-- Change Name button now simply resets the session -->
-        <button onclick="changeName()">Disconnect</button>
+        <button onclick="changeName()">Change Name</button>
     </div>
 
     <script>
@@ -87,10 +96,11 @@
             const messageEl = document.createElement("p");
             const msg = event.data;
 
-            // Handle welcome message.
+            // Handle welcome and error messages in the login phase.
             if (msg.startsWith("Welcome, ")) {
                 const nameFromServer = msg.split("Welcome, ")[1].split("!")[0];
                 myUsername = nameFromServer;
+                // Hide the login UI and show the chat interface.
                 document.getElementById("login").style.display = "none";
                 document.getElementById("chat-interface").style.display = "block";
                 document.getElementById("message").focus();
@@ -100,7 +110,7 @@
                 document.getElementById("login-error").textContent = msg;
                 return;
             } else {
-                // Expected message format: "username [timestamp]: message"
+                // Expected format: "username [timestamp]: message"
                 const pattern = /^(.+?) \[(.+?)\]: (.*)$/;
                 const parts = msg.match(pattern);
                 if (parts) {
@@ -149,12 +159,35 @@
             }
         });
 
-        // New changeName function: resets session by reloading the page.
         function changeName() {
-            // Optionally, you could send a logout or disconnect message here.
-            // For simplicity, we just reload the page to reset the session.
+            // Reset the session by reloading the page.
             location.reload();
         }
+
+        // Check connection status when the page is focused or shown.
+        function checkConnection() {
+            // Only check if the user is logged in.
+            if (myUsername && (!ws || ws.readyState !== WebSocket.OPEN)) {
+                // Replace chat interface with a "logged out" message.
+                document.getElementById("chat-interface").innerHTML =
+                    "<div id='system-message'>You have been logged out.</div>";
+            }
+        }
+
+        // Listen for events that indicate the user has returned or the device has woken up.
+        document.addEventListener("visibilitychange", function () {
+            if (!document.hidden) {
+                checkConnection();
+            }
+        });
+
+        window.addEventListener("focus", function () {
+            checkConnection();
+        });
+
+        window.addEventListener("pageshow", function () {
+            checkConnection();
+        });
     </script>
 </body>
 
