@@ -31,7 +31,7 @@
             display: none;
         }
 
-        /* System message styling (for logout, etc.) */
+        /* System message styling for logout screen */
         #system-message {
             padding: 20px;
             border: 2px solid red;
@@ -65,7 +65,7 @@
 </head>
 
 <body>
-    <!-- Login section with a welcome message -->
+    <!-- Login section with welcome message -->
     <div id="login">
         <p id="welcome-message">Welcome to the site :)</p>
         <p>Please enter your name:</p>
@@ -96,11 +96,10 @@
             const messageEl = document.createElement("p");
             const msg = event.data;
 
-            // Handle welcome and error messages in the login phase.
+            // Handle welcome message from login.
             if (msg.startsWith("Welcome, ")) {
                 const nameFromServer = msg.split("Welcome, ")[1].split("!")[0];
                 myUsername = nameFromServer;
-                // Hide the login UI and show the chat interface.
                 document.getElementById("login").style.display = "none";
                 document.getElementById("chat-interface").style.display = "block";
                 document.getElementById("message").focus();
@@ -164,17 +163,23 @@
             location.reload();
         }
 
-        // Check connection status when the page is focused or shown.
+        // Function to check the connection state.
         function checkConnection() {
-            // Only check if the user is logged in.
             if (myUsername && (!ws || ws.readyState !== WebSocket.OPEN)) {
-                // Replace chat interface with a "logged out" message.
                 document.getElementById("chat-interface").innerHTML =
-                    "<div id='system-message'>You have been logged out.</div>";
+                    `<div id="system-message">
+            You have been logged out.<br>
+            <button onclick="logBackIn()">Log Back In</button>
+          </div>`;
             }
         }
 
-        // Listen for events that indicate the user has returned or the device has woken up.
+        // "Log Back In" simply reloads the page.
+        function logBackIn() {
+            location.reload();
+        }
+
+        // Check connection when the page comes into focus or is shown.
         document.addEventListener("visibilitychange", function () {
             if (!document.hidden) {
                 checkConnection();
