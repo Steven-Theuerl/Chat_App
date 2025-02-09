@@ -160,23 +160,65 @@
         });
 
         function changeName() {
-            // Instead of reloading the entire page, reset the UI.
-            myUsername = null;
-            // Optionally, you could also close the existing WebSocket connection.
-            // For simplicity, we assume the server will drop the connection on logout.
-            // Hide the chat interface.
-            document.getElementById("chat-interface").style.display = "none";
-            // Update the banner text.
-            document.getElementById("welcome-message").textContent = "Who do you want to be this time?";
-            // Clear any previous login errors.
-            document.getElementById("login-error").textContent = "";
-            // Show the login section again.
-            document.getElementById("login").style.display = "block";
-            // Clear the name input.
-            document.getElementById("name").value = "";
-            // Optionally, you can also clear the chat area.
-            document.getElementById("chat").innerHTML = "";
-        }
+                // Inform the server to disconnect the user and reset the WebSocket connection
+                if (ws) {
+                    ws.close(); // Close the WebSocket connection
+                }
+
+                // Reset application state (if needed)
+                myUsername = null; // Clear the username
+                document.getElementById("chat-interface").style.display = "none"; // Hide chat interface
+                document.getElementById("login").style.display = "block"; // Show login form again
+                document.getElementById("name").value = ""; // Clear any pre-filled username in the input field
+                document.getElementById("login-error").textContent = ""; // Clear any error message
+
+                // Optionally, you can also clear the chat history
+                document.getElementById("chat").innerHTML = "";
+
+                // Prompt the user to enter a new name
+                document.getElementById("welcome-message").textContent = "Who do you want to be this time?";
+
+                // Reinitialize the WebSocket connection
+                ws = new WebSocket(`${proto}://${window.location.host}`);
+                ws.onopen = function () {
+                    console.log("Connected to the chat server.");
+                };
+
+                ws.onmessage = function (event) {
+                    const chat = document.getElementById("chat");
+                    const messageEl = document.createElement("p");
+                    const msg = event.data;
+
+                    // Handle messages here, including new user registration or messages
+                    if (msg.startsWith("Welcome, ")) {
+                        const nameFromServer = msg.split("Welcome, ")[1].split("!")[0];
+                        myUsername = nameFromServer;
+                        document.getElementById("login").style.display = "none";
+                        document.getElementById("chat-interface").style.display = "block";
+                        document.getElementById("message").focus();
+                        messageEl.textContent = msg;
+                        messageEl.classList.add("other-message");
+                    } else {
+                        const pattern = /^(.+?) \[(.+?)\]: (.*)$/;
+                        const parts = msg.match(pattern);
+                        if (parts) {
+                            if (myUsername && parts[1] === myUsername) {
+                                messageEl.textContent = `You [${parts[2]}]: ${parts[3]}`;
+                                messageEl.classList.add("my-message");
+                            } else {
+                                messageEl.textContent = msg;
+                                messageEl.classList.add("other-message");
+                            }
+                        } else {
+                            messageEl.textContent = msg;
+                            messageEl.classList.add("other-message");
+                        }
+                    }
+                    chat.appendChild(messageEl);
+                    chat.scrollTop = chat.scrollHeight;
+                };
+            }
+
 
         // Check connection when the page becomes visible or regains focus.
         function checkConnection() {

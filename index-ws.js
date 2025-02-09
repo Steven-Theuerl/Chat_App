@@ -303,25 +303,22 @@ wss.on("connection", function connection(ws) {
   });
   // Finish handling the message functionality from clients.
 
-  ws.on("close", function close() {
-    // When a client connected to the websocket closes the connection, this function is called.
+  ws.on("close", function () {
+    console.log(`User ${ws.username} disconnected`);
     if (ws.username) {
       wss.broadcast(`${ws.username} has disconnected.`);
-      // Broadcast a message to all connected users indicating that the user has disconnected.
+      // Broadcast the disconnection message
       db.run(
         "DELETE FROM visitors WHERE username = ? AND ip = ?",
         [ws.username, ws.ip],
-        function (err) {
-          if (err) console.error("Error deleting visitor:", err);
+        (err) => {
+          if (err) {
+            console.error("Error deleting visitor:", err);
+          }
         }
       );
-      // Delete the user's entry from the visitors table.
+      // Delete the user from the visitors table and force client back to authentication page.
     }
-    const remainingClients = wss.clients.size;
-    // Count the number of remaining clients connected to the websocket server.
-    wss.broadcast(`Current visitors: ${remainingClients}`);
-    // Broadcast the current number of visitors to all connected users.
-    console.log("A client has disconnected.");
   });
 
   ws.on("error", function error(err) {
