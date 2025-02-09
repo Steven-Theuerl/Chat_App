@@ -34,16 +34,18 @@
         /* System message styling for logout screen */
         #system-message {
             padding: 20px;
-            border: 2px solid red;
+            border: 2px solid grey;
             text-align: center;
             font-size: 1.2em;
             margin-top: 20px;
+            background-color: #cccccc;
         }
 
         /* Message alignment */
         .my-message {
             text-align: right;
-            background-color: #e0ffe0;
+            background-color: #87CEEB;
+            /* Sky Blue */
             margin: 5px;
             padding: 5px;
             border-radius: 5px;
@@ -51,7 +53,8 @@
 
         .other-message {
             text-align: left;
-            background-color: #f0f0f0;
+            background-color: #dff0d8;
+            /* Light yellowish green */
             margin: 5px;
             padding: 5px;
             border-radius: 5px;
@@ -65,7 +68,7 @@
 </head>
 
 <body>
-    <!-- Login section with welcome message -->
+    <!-- Login section with banner -->
     <div id="login">
         <p id="welcome-message">Welcome to the site :)</p>
         <p>Please enter your name:</p>
@@ -96,7 +99,6 @@
             const messageEl = document.createElement("p");
             const msg = event.data;
 
-            // Handle welcome message from login.
             if (msg.startsWith("Welcome, ")) {
                 const nameFromServer = msg.split("Welcome, ")[1].split("!")[0];
                 myUsername = nameFromServer;
@@ -109,7 +111,6 @@
                 document.getElementById("login-error").textContent = msg;
                 return;
             } else {
-                // Expected format: "username [timestamp]: message"
                 const pattern = /^(.+?) \[(.+?)\]: (.*)$/;
                 const parts = msg.match(pattern);
                 if (parts) {
@@ -159,11 +160,25 @@
         });
 
         function changeName() {
-            // Reset the session by reloading the page.
-            location.reload();
+            // Instead of reloading the entire page, reset the UI.
+            myUsername = null;
+            // Optionally, you could also close the existing WebSocket connection.
+            // For simplicity, we assume the server will drop the connection on logout.
+            // Hide the chat interface.
+            document.getElementById("chat-interface").style.display = "none";
+            // Update the banner text.
+            document.getElementById("welcome-message").textContent = "Who do you want to be this time?";
+            // Clear any previous login errors.
+            document.getElementById("login-error").textContent = "";
+            // Show the login section again.
+            document.getElementById("login").style.display = "block";
+            // Clear the name input.
+            document.getElementById("name").value = "";
+            // Optionally, you can also clear the chat area.
+            document.getElementById("chat").innerHTML = "";
         }
 
-        // Function to check the connection state.
+        // Check connection when the page becomes visible or regains focus.
         function checkConnection() {
             if (myUsername && (!ws || ws.readyState !== WebSocket.OPEN)) {
                 document.getElementById("chat-interface").innerHTML =
@@ -174,12 +189,10 @@
             }
         }
 
-        // "Log Back In" simply reloads the page.
         function logBackIn() {
             location.reload();
         }
 
-        // Check connection when the page comes into focus or is shown.
         document.addEventListener("visibilitychange", function () {
             if (!document.hidden) {
                 checkConnection();

@@ -1,32 +1,50 @@
 const express = require("express");
+// Import the Express module, a popular web framework for Node.js,
+// which provides a simpler API for handling routing, middleware, etc.
 const server = require("http").createServer();
+// Import Node.js' built-in HTTP module and create an HTTP server.
+// This server will be used by Express to handle HTTP requests,
+// and it will also be used later to attach a WebSocket server.
 const app = express();
+// Create an instance of the Express application. This 'app' object
+// will be used to define routes, middleware, and other server logic.
 const PORT = 3000;
+// Define the port number on which the server will listen for incoming HTTP requests.
 
-// Middleware to parse JSON bodies for PUT requests.
 app.use(express.json());
+// Use Express's built-in middleware to parse JSON bodies from incoming requests. This
+// is especially useful for handling PUT / POST requests where the client sends data in JSON format.
 
 app.get("/", function (req, res) {
   res.sendFile("index.html", { root: __dirname });
 });
+//This line is saying - "when a client sends us a get request with the path "/",
+// send them the index.html file in the root directory."
+// __dirname is a Node.js global variable that represents the absolute path
+// of the directory containing the currently executing file.
 
 server.on("request", app);
 server.listen(PORT, function () {
   console.log("Listening on " + PORT);
 });
+// Turning on an HTTP server and attaching the Express application to it, so
+// that Express can handle incoming HTTP requests to port 3000.
 
 server.on("error", (err) => {
   console.error("HTTP server error:", err);
 });
+// This line is saying - "if there is an error with the HTTP server, print the error to the console."
 
 /** Begin Database **/
 
 const sqlite = require("sqlite3");
-// Creates an in‑memory database (non‑persistent)
+// require the sqlite3 module.
 const db = new sqlite.Database(":memory:");
+// Creates an in‑memory database using the sqlite3 module.
+// If we want to store the data on disk, we can replace ":memory:" with the path to the database file.
 
 db.serialize(() => {
-  // Create visitors table with username, ip, and time.
+  // serialize ensures the following code is executed sequentially.
   db.run(`
     CREATE TABLE visitors (
       count INTEGER,
@@ -35,7 +53,7 @@ db.serialize(() => {
       time TEXT
     )
   `);
-  // Create chat_messages table with username, ip, message, and time.
+  // Create visitors table with username, ip, and time.
   db.run(`
     CREATE TABLE chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,6 +63,7 @@ db.serialize(() => {
       time TEXT
     )
   `);
+  // Create chat_messages table with username, ip, message, and time.
 });
 
 function getCounts() {
@@ -221,6 +240,7 @@ wss.on("connection", function connection(ws) {
                 console.error("Error retrieving timestamp:", err);
               } else {
                 wss.broadcast(`${ws.username} [${row.time}]: ${message}`);
+                // console.log(``)
               }
             }
           );
